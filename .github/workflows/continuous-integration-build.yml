@@ -57,3 +57,15 @@ jobs:
           curl -X POST -H 'Content-type: application/json' \
           --data '{"text":"❌ Build or Tests FAILED – check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Deploy to Droplet
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            docker pull registry.digitalocean.com/my-registry/myapp:latest
+            docker stop myapp || true
+            docker rm myapp || true
+            docker run -d --name myapp -p 80:8080 registry.digitalocean.com/my-registry/myapp:latest
