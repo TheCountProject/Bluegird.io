@@ -65,5 +65,5 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-              cd ~/app
+              cd /root/Bluegird.io/gs-rest-service
               sudo systemctl restart myapp
