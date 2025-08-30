@@ -1,49 +1,59 @@
-name: CI Build
+name: CI Pipeline
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    branches: [ master, develop ]
 
 jobs:
-  build:
-    name: Build Main Branch
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up JDK 17
+      - name: Set up JDK
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
+          distribution: temurin
+          java-version: 17
 
-      - name: Build Initial with Maven
-        working-directory: ./initial
-        run: ./mvnw --batch-mode clean package
+      - name: Build with Maven
+        run: mvn -f complete/pom.xml clean package
 
-      - name: Build Initial with Gradle
-        working-directory: ./initial
-        run: ./gradlew build
+      - name: Run tests
+        run: mvn -f complete/pom.xml test
 
-      - name: Build Initial Kotlin with Gradle
-        working-directory: ./initial-kotlin
-        run: ./gradlew build
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: complete/target/surefire-reports/*.xml
 
-      - name: Build Complete with Maven
-        working-directory: ./complete
-        run: ./mvnw --batch-mode clean package
+      - name: Notify Slack build start
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"🚀 Build started for branch ${{ github.ref_name }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Build Complete with Gradle
-        working-directory: ./complete
-        run: ./gradlew build
+      - name: Notify Slack tests finished
+        if: always()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"🧪 Tests finished for branch ${{ github.ref_name }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Build Complete Kotlin with Gradle
-        working-directory: ./complete-kotlin
-        run: ./gradlew build
+      - name: Notify Slack success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"✅ Build + Tests SUCCESS"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack fail
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"❌ Build or Tests FAILED – check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}

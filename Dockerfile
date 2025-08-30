@@ -1,0 +1,11 @@
+FROM maven:3.9.9-eclipse-temurin-17 AS builder
+WORKDIR /app
+COPY . .
+RUN mvn -f pom.xml clean package -DskipTests
+
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+COPY --from=builder /app/complete/target/*.jar app.jar
+
+EXPOSE 777
+ENTRYPOINT ["java","-jar","-Dserver.port=777","app.jar"]
