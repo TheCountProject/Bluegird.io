@@ -65,7 +65,5 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            docker pull registry.digitalocean.com/my-registry/myapp:latest
-            docker stop myapp || true
-            docker rm myapp || true
-            docker run -d --name myapp -p 80:8080 registry.digitalocean.com/my-registry/myapp:latest
+              cd ~/app
+              sudo systemctl restart myapp
