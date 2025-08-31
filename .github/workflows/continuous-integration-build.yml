@@ -59,7 +59,7 @@ jobs:
           context: . 
           file: ./Dockerfile
           push: true 
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/gs-rest-service:latest
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/myjavaapp:latest
 
 
       - name: Deploy to DigitalOcean Droplet
@@ -71,15 +71,15 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             # Pull the latest image from Docker Hub
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/gs-rest-service:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/myjavaapp:latest
 
             # Stop and remove the existing container if it exists
-            docker stop gs-rest-service-container || true
-            docker rm gs-rest-service-container || true
+            docker stop myjavaapp:latest || true
+            docker rm myjavaapp:latest || true
 
             # Run the new container
-            docker run -d --name gs-rest-service-container -p 777:777 \
-            ${{ secrets.DOCKERHUB_USERNAME }}/gs-rest-service:latest
+            docker run -d --name /myjavaapp -p 777:777 \
+            ${{ secrets.DOCKERHUB_USERNAME }}/myjavaapp:latest
 
       - name: Notify Slack success
         if: success()
