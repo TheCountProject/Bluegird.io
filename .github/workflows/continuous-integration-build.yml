@@ -57,3 +57,13 @@ jobs:
           curl -X POST -H 'Content-type: application/json' \
           --data '{"text":"❌ Build or Tests FAILED – check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Deploy to Droplet
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+              cd /root/Bluegird.io/complete/target
+              sudo systemctl restart myapp
