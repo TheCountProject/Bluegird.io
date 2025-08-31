@@ -1,34 +1,28 @@
-name: CI Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ master, develop ]
 
 jobs:
-  build-and-test:
+  build-test-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
-          distribution: temurin
-          java-version: 17
+          distribution: 'temurin'
+          java-version: '17'
 
       - name: Build with Maven
         run: mvn -f complete/pom.xml clean package
 
-      - name: Run tests
+      - name: Run tests with Maven
         run: mvn -f complete/pom.xml test
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: complete/target/surefire-reports/*.xml
 
       - name: Notify Slack build start
         if: ${{ github.event_name == 'push' }}
@@ -38,32 +32,65 @@ jobs:
           ${{ secrets.SLACK_WEBHOOK_URL }}
 
       - name: Notify Slack tests finished
-        if: always()
+        if: always() # This ensures it runs even if tests fail
         run: |
           curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"🧪 Tests finished for branch ${{ github.ref_name }}"}' \
+          --data '{"text":"🧪 Tests finished for branch ${{ github.ref_name }}. Status: ${{ job.status }}"}' \
           ${{ secrets.SLACK_WEBHOOK_URL }}
+      
+      - name: Upload test results
+        if: failure() # Upload artifacts only on failure to inspect
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: complete/target/surefire-reports/*.xml
 
-      - name: Notify Slack success
+      - name: Log in to Docker Hub
         if: success()
-        run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"✅ Build + Tests SUCCESS"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Notify Slack fail
-        if: failure()
-        run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"❌ Build or Tests FAILED – check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Build and push Docker image
+        if: success()
+        uses: docker/build-push-action@v5
+        with:
+          context: . 
+          file: ./Dockerfile
+          push: true 
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/gs-rest-service:latest
 
-      - name: Deploy to Droplet
+
+      - name: Deploy to DigitalOcean Droplet
+        if: success()
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-              cd /root/Bluegird.io/complete/target
-              sudo systemctl restart myapp
+            # Pull the latest image from Docker Hub
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/gs-rest-service:latest
+
+            # Stop and remove the existing container if it exists
+            docker stop gs-rest-service-container || true
+            docker rm gs-rest-service-container || true
+
+            # Run the new container
+            docker run -d --name gs-rest-service-container -p 777:777 \
+            ${{ secrets.DOCKERHUB_USERNAME }}/gs-rest-service:latest
+
+      - name: Notify Slack success
+        if: success()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"✅ Build, Push and Deploy SUCCESS"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack fail
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"❌ CI/CD Pipeline FAILED – check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
