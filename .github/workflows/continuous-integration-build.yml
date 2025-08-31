@@ -66,4 +66,4 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
               cd /root/Bluegird.io/complete/target
-              sudo systemctl restart rest-service-complete-0.0.1-SNAPSHOT
+              sudo systemctl restart myapp
